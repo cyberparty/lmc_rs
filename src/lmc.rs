@@ -1,63 +1,151 @@
 use std::io;
+use std::fs::File;
+use std::io::BufReader;
+use std::io::BufRead;
+
+
+pub struct Instruction {
+    opcode: u8,
+    operand: usize
+}
 
 pub struct LMC {
     program_counter: u8,
     accumulator: u8,
-    mailbox: [u8; 99],
+    neg_flag: bool,
+    mailbox: Vec<u8>,
+
+    data_reg: u8,
+
+    current_instruction: Instruction
 }
 
 // LMC instructions
 impl LMC {
-    fn add(&mut self, addr: usize) {
-        self.accumulator += self.mailbox[addr];
-    }
 
-    fn sub(&mut self, addr: usize) {
-        self.accumulator -= self.mailbox[addr];
-    }
-
-    fn sta(&mut self, addr: usize) {
-        self.mailbox[addr] = self.accumulator;
-    }
-
-    fn lda(&mut self, addr: usize)
+    pub fn create(self) -> LMC
     {
-        self.accumulator = self.mailbox[addr];
+        LMC {
+            program_counter: 0,
+            accumulator: 0,
+            neg_flag: false,
+            mailbox: self.load_instructions("instructions"),
+    
+            data_reg: 0,
+
+            current_instruction: Instruction{opcode: 0, operand: 0}
+        }
     }
 
-    fn bra(&mut self, addr: usize)
+    pub fn load_instructions(&mut self, path: &str) -> Vec<u8>
     {
-        self.program_counter = self.mailbox[addr];
+        let i_file = File::open(path).expect("Couldn't find instruction file.");
+        let i_read = BufReader::new(i_file);
+
+        let instructions: Vec<u8> = i_read
+        .lines()
+        .map(|i| i.unwrap().parse::<u8>().unwrap())
+        .collect();
+
+        return instructions;
+
     }
 
-    fn brz(&mut self, addr: usize) {
+    fn fetch(&mut self, addr: usize)
+    {
+        self.data_reg = self.mailbox[addr];
+    }
+
+    fn decode(&mut self)
+    {
+        //i found out this division and modulus technique from tomc1998. much kudos to them.
+        self.current_instruction.opcode = self.data_reg / 100;
+        self.current_instruction.operand = (self.data_reg % 100) as usize;
+    }
+
+    fn execute(&mut self)
+    {
+        match self.current_instruction.opcode {
+            1 => self.add(),
+            2 => self.sub(),
+            3 => self.sta(),
+            5 => self.lda(),
+            6 => self.bra(),
+            7 => self.brz(),
+            8 => self.brp(),
+            9 => {
+                if self.current_instruction.operand == 1 {
+                    self.inp()
+                }
+                else if self.current_instruction.operand == 2 {
+                    self.out()
+                }
+            }
+            _ => {}
+
+        }
+    }
+
+    //LMC spec is vague on what actually happens with regards to negative values in 
+    //these cases, if a potential underflow or overflow happens, the value remains unchanged
+    //and neg_flag is set to true until the next 'successful' arithmetic operation
+
+    fn add(&mut self) {
+        self.fetch(self.current_instruction.operand);
+        if self.accumulator+self.data_reg < 999
+        {
+            self.neg_flag = true;
+        } else {
+            self.accumulator += self.data_reg;
+            self.neg_flag = false;
+        }
+    }
+
+    fn sub(&mut self) {
+        self.fetch(self.current_instruction.operand);
+        if self.accumulator < self.data_reg {
+            self.neg_flag = true; 
+        } else {
+            self.accumulator -= self.data_reg;
+            self.neg_flag = false;
+        }
+    }
+
+    fn sta(&mut self) {
+        self.mailbox[self.current_instruction.operand] = self.accumulator;
+    }
+
+    fn lda(&mut self)
+    {
+        self.accumulator = self.mailbox[self.current_instruction.operand];
+    }
+
+    fn bra(&mut self)
+    {
+        self.program_counter = self.mailbox[self.current_instruction.operand];
+    }
+
+    fn brz(&mut self) {
         if self.program_counter == 0 {
-            self.program_counter = self.mailbox[addr];
+            self.program_counter = self.mailbox[self.current_instruction.operand];
         }
     }
 
-    fn brp(&mut self, addr: usize) {
-        if self.program_counter >= 0 { // todo: remove redundant check and replace common functionality with macro?
-            self.program_counter = self.mailbox[addr];
+    fn brp(&mut self) {
+        if !self.neg_flag {
+            self.program_counter = self.mailbox[self.current_instruction.operand];
         }
     }
-
+    
     fn inp(&mut self) {
         let mut read_input = String::new();
         io::stdin().read_line(&mut read_input).unwrap();
-        let input: u8 = read_input.trim().parse().expect("Error: Not an integer!")
+        let input: u8 = read_input.trim().parse().unwrap();
         self.accumulator = input;
     }
 
     fn out(&self) {
         println!("{}", self.accumulator);
-    }
-
-    //likely not necessary in future; essentially just a shortcut to STA in next free memory address
-    fn dat(&self, addr: u8)
-    {
-        let mut empty_addr = self.mailbox.iter().position(|&x| x == 0).unwrap();
-        self.mailbox[empty_addr] = addr;
     }
 
 }
