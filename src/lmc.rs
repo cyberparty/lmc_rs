@@ -11,11 +11,11 @@ pub struct Instruction {
 
 pub struct LMC {
     program_counter: u8,
-    accumulator: u8,
+    accumulator: u16,
     neg_flag: bool,
-    mailbox: Vec<u8>,
+    mailbox: Vec<u16>,
 
-    data_reg: u8,
+    data_reg: u16,
 
     current_instruction: Instruction
 }
@@ -23,28 +23,35 @@ pub struct LMC {
 // LMC instructions
 impl LMC {
 
-    pub fn create(self) -> LMC
+    pub fn create() -> LMC
     {
         LMC {
             program_counter: 0,
             accumulator: 0,
             neg_flag: false,
-            mailbox: self.load_instructions("instructions"),
-    
+            mailbox: vec![901,
+            307,
+            901,
+            308,
+            507,
+            208,
+            902,
+            0,
+            0],
             data_reg: 0,
 
-            current_instruction: Instruction{opcode: 0, operand: 0}
+            current_instruction: Instruction{opcode: 0, operand: 0},
         }
     }
 
-    pub fn load_instructions(&mut self, path: &str) -> Vec<u8>
+    pub fn load_instructions(&mut self, path: &str) -> Vec<u16>
     {
         let i_file = File::open(path).expect("Couldn't find instruction file.");
         let i_read = BufReader::new(i_file);
 
-        let instructions: Vec<u8> = i_read
+        let instructions: Vec<u16> = i_read
         .lines()
-        .map(|i| i.unwrap().parse::<u8>().unwrap())
+        .map(|i| i.unwrap().parse::<u16>().unwrap())
         .collect();
 
         return instructions;
@@ -59,13 +66,14 @@ impl LMC {
     fn decode(&mut self)
     {
         //i found out this division and modulus technique from tomc1998. much kudos to them.
-        self.current_instruction.opcode = self.data_reg / 100;
+        self.current_instruction.opcode = (self.data_reg / 100) as u8;
         self.current_instruction.operand = (self.data_reg % 100) as usize;
     }
 
-    fn execute(&mut self)
+    fn execute(&mut self) -> bool
     {
         match self.current_instruction.opcode {
+            0 => return false,
             1 => self.add(),
             2 => self.sub(),
             3 => self.sta(),
@@ -84,6 +92,15 @@ impl LMC {
             _ => {}
 
         }
+        return true;
+    }
+
+    pub fn cycle(&mut self) -> bool
+    {
+        self.fetch(self.program_counter as usize);
+        self.decode();
+        self.program_counter += 1;
+        return self.execute();
     }
 
     //LMC spec is vague on what actually happens with regards to negative values in 
@@ -122,25 +139,26 @@ impl LMC {
 
     fn bra(&mut self)
     {
-        self.program_counter = self.mailbox[self.current_instruction.operand];
+        self.program_counter = self.mailbox[self.current_instruction.operand] as u8;
     }
 
     fn brz(&mut self) {
         if self.program_counter == 0 {
-            self.program_counter = self.mailbox[self.current_instruction.operand];
+            self.program_counter = self.mailbox[self.current_instruction.operand] as u8;
         }
     }
 
     fn brp(&mut self) {
         if !self.neg_flag {
-            self.program_counter = self.mailbox[self.current_instruction.operand];
+            self.program_counter = self.mailbox[self.current_instruction.operand] as u8;
         }
     }
     
     fn inp(&mut self) {
+        println!("INPUT:");
         let mut read_input = String::new();
         io::stdin().read_line(&mut read_input).unwrap();
-        let input: u8 = read_input.trim().parse().unwrap();
+        let input: u16 = read_input.trim().parse().unwrap();
         self.accumulator = input;
     }
 
