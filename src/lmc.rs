@@ -1,7 +1,4 @@
 use std::io;
-use std::fs::File;
-use std::io::BufReader;
-use std::io::BufRead;
 
 
 pub struct Instruction {
@@ -13,7 +10,7 @@ pub struct LMC {
     program_counter: u8,
     accumulator: u16,
     neg_flag: bool,
-    mailbox: Vec<u16>,
+    mailbox: [u16; 99],
 
     data_reg: u16,
 
@@ -29,33 +26,21 @@ impl LMC {
             program_counter: 0,
             accumulator: 0,
             neg_flag: false,
-            mailbox: vec![901,
-            307,
-            901,
-            308,
-            507,
-            208,
-            902,
-            0,
-            0],
+            mailbox: [0; 99],
             data_reg: 0,
 
             current_instruction: Instruction{opcode: 0, operand: 0},
         }
     }
 
-    pub fn load_instructions(&mut self, path: &str) -> Vec<u16>
+    pub fn load_instructions(&mut self, instructions: Vec<u16>)
     {
-        let i_file = File::open(path).expect("Couldn't find instruction file.");
-        let i_read = BufReader::new(i_file);
-
-        let instructions: Vec<u16> = i_read
-        .lines()
-        .map(|i| i.unwrap().parse::<u16>().unwrap())
-        .collect();
-
-        return instructions;
-
+        let mut index: usize = 0;
+        for ins in instructions
+        {
+            self.mailbox[index] = ins;
+            index += 1;
+        }
     }
 
     fn fetch(&mut self, addr: usize)
@@ -109,7 +94,7 @@ impl LMC {
 
     fn add(&mut self) {
         self.fetch(self.current_instruction.operand);
-        if self.accumulator+self.data_reg < 999
+        if self.accumulator+self.data_reg > 999
         {
             self.neg_flag = true;
         } else {
