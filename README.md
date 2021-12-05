@@ -6,5 +6,7 @@ Little Man Computer (LMC) is a computer modelled by an instruction set, and is c
 
 ## Why?
 This is a project to help further familiarise myself with Rust.
-The entire project scope is undecided as of current, but the main goal will be that it can run a set of LMC instructions provided to it, emulating how the LMC would execute these instructions internally.
-The project may be extended at some point to include a compiler, which will compile the instructions provided to it into their decimal representations and subsequently run them.
+
+## Thanks
+I wanted to thank tomc1998. While doing this project, I came across his repository for a rust-based LMC. I was disheartened that they had already beaten me to the concept, but in the end it inspired me to keep going, and I even incorperated some of the concepts they laid out in their own project. Reading through their work has taught me a lot.
+
